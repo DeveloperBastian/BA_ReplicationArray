@@ -2,6 +2,7 @@
 #include "BA_ReplicationInfo.h"
 #include "BA_RepArray.h"
 #include "Math/NumericLimits.h"
+#include "Async/Async.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "Logging/StructuredLog.h"
 #include "Net/UnrealNetwork.h"
@@ -30,23 +31,35 @@ ABA_ReplicationInfo::ABA_ReplicationInfo()
 
 #pragma region Authority Only
 
-void ABA_ReplicationInfo::AddObject(UObject* StorageObject, bool& SuccessfullyAdded, FGuid& InstanceGuid, FString& InstanceIdentifier)
+void ABA_ReplicationInfo::AddObject(UObject* StorageObject, bool& SuccessfullyAdded, FGuid& InstanceGuid, FString& InstanceIdentifier, const int64 NumberOfNewObjects)
 {
     SuccessfullyAdded = false;
+    if (NumberOfNewObjects <= 0)
+    {
+        UE_LOGFMT(Log_BA_IM_RepArray, Log, "{function}: NumberOfNewObject was set to '{number}'"
+            , __FUNCTION__, FString::FromInt(NumberOfNewObjects));
+        return;
+    }
+    
     if (StorageObject)
     {
-        InstanceGuid = FGuid::NewGuid();
-        InstanceIdentifier = GetUniqueName();
-        if (InstanceIdentifier.IsEmpty())
+        int64 SuccessCounter = 0;
+        
+        TMap<FString, FGuid> Identifiers;
+        while (Identifiers.Num() < NumberOfNewObjects)
         {
-            InstanceIdentifier = InstanceGuid.ToString();
-        } 
-
-        if (SuccessfullyAdded = ReplicatedObjectArray.AddEntry(StorageObject, InstanceGuid, InstanceIdentifier);
-            SuccessfullyAdded == true)
-        {
-            UpdateStatistics_Add(StorageObject);
+            Identifiers.Emplace(this->GetUniqueName(), FGuid::NewGuid());
         }
+        for (auto& KvP : Identifiers)
+        {
+            if (SuccessfullyAdded = ReplicatedObjectArray.AddEntry(StorageObject, KvP.Value, KvP.Key);
+                SuccessfullyAdded == true)
+            {
+                SuccessCounter++;
+                UpdateStatistics_Add(StorageObject);
+            }
+        }
+        SuccessfullyAdded = SuccessCounter == NumberOfNewObjects;
     }
     else
     {
@@ -58,6 +71,8 @@ void ABA_ReplicationInfo::AddObject(UObject* StorageObject, bool& SuccessfullyAd
 void ABA_ReplicationInfo::ClearArray()
 {
     ReplicatedObjectArray.Clear();
+    StatisticsArray.Empty();
+    OnFullArrayChangeEmpty.Broadcast();
 }
 
 bool ABA_ReplicationInfo::RemoveEntry(FGuid Guid, UObject*& DeletedEntry)
@@ -118,8 +133,21 @@ void ABA_ReplicationInfo::GetObjectByGuid(FGuid Guid, bool& Found, UObject*& Obj
 
 void ABA_ReplicationInfo::GetObjectByIdentifier(FString Identifier, bool& Found, UObject*& ObjectFound)
 {
-    // ToDo
-    return;
+    Found = false;
+    FBA_FFA_Object Entry;
+    if (!ReplicatedObjectArray.GetEntryByIdentifier(Identifier, Entry))
+    {
+        Found = false;
+        return;
+    }
+    if (ObjectFound = BA_Statics::DeserializeObjectFromString(
+        Entry.SerializedObject,
+        this,
+        Entry.ClassToCastTo);
+        ObjectFound)
+    {
+        Found = true;
+    }
 }
 
 void ABA_ReplicationInfo::GetRandomEntry(bool& Found, UObject*& ObjectFound, FGuid& InstanceGuid, FString& InstanceIdentifier)
@@ -139,7 +167,10 @@ void ABA_ReplicationInfo::GetRandomEntry(bool& Found, UObject*& ObjectFound, FGu
     {
         InstanceGuid = ReplicatedObjectArray.Items[RandomEntryNumber].InstanceGuid;
         InstanceIdentifier = ReplicatedObjectArray.Items[RandomEntryNumber].InstanceIdentifier;
-        Found = true;
+        if (InstanceGuid.IsValid())
+        {
+            Found = true;
+        }
     }
 }
 
@@ -152,7 +183,7 @@ void ABA_ReplicationInfo::GetEntryObject(FGuid Guid, bool& ValidObjectFound, UOb
             , __FUNCTION__);
         return;
     }
-    // ToDo: pos map empty????
+    
     if (int32* Position = ReplicatedObjectArray.GuidToArrayPos.Find(Guid);
         Position && *Position != INDEX_NONE)
     {
@@ -181,56 +212,36 @@ void ABA_ReplicationInfo::GetEntryObject(FGuid Guid, bool& ValidObjectFound, UOb
 
 void ABA_ReplicationInfo::SortByArrayIndex()
 {
-    ReplicatedObjectArray.Items.Sort();
+    ReplicatedObjectArray.SortByIndex();
+    // if server side, replicate changed array
+    if (this->HasAuthority())
+    {
+        ReplicatedObjectArray.MarkArrayDirty();
+        UE_LOGFMT(Log_BA_IM_RepArray, Warning, "{function}: Full array replication triggered as sorting was done on server side"
+            , __FUNCTION__);
+        return;
+    }
+    OnFullArrayChangeSort.Broadcast();
 }
 
 void ABA_ReplicationInfo::SortByObjectPropertyName(FString PropertyName)
 {
-    //TLess<> Predicate;
-    auto SortAlgorithm = [PropertyName, this](FBA_FFA_Object EntryA, FBA_FFA_Object EntryB)
+    if (PropertyName.IsEmpty())
     {
-        UObject* UObjectA = BA_Statics::DeserializeObjectFromString(EntryA.SerializedObject, Owner, EntryA.ClassToCastTo);
-        UObject* UObjectB = BA_Statics::DeserializeObjectFromString(EntryB.SerializedObject, Owner, EntryB.ClassToCastTo);
-
-        if (UObjectA == NULL || UObjectB == NULL)
-        {
-            return false;
-        }
-
-        FProperty* PropA = UObjectA->GetClass()->FindPropertyByName(*PropertyName);
-        FProperty* PropB = UObjectB->GetClass()->FindPropertyByName(*PropertyName);
-
-        if (PropA == NULL || PropB == NULL)
-        {
-            return false;
-        }
-
-        // Determine the value type of both FProperty
-        FString TypeA = PropA->GetCPPType();
-        FString TypeB = PropB->GetCPPType();
-
-        // Check if both types are equal
-        if (TypeA != TypeB)
-        {
-            return false;
-        }
-
-        // Check if the type is found in the type array
-        if (!this->SortableTypesArray.Contains(TypeA))
-        {
-            return false;
-        }
-
-        // Retrieve the value of both FProperty
-        FString ValueA, ValueB;
-        PropA->ExportText_InContainer(0, ValueA, UObjectA, UObjectA, UObjectA, PPF_None);
-        PropB->ExportText_InContainer(0, ValueB, UObjectB, UObjectB, UObjectB, PPF_None);
-
-        // Compare the values with "<" and return true or false
-        return ValueA < ValueB;
-    };
-
-    Algo::Sort(ReplicatedObjectArray.Items, SortAlgorithm);
+        UE_LOGFMT(Log_BA_IM_RepArray, Log, "{function}: Not sorting as PropertyName is empty"
+            , __FUNCTION__);
+        return;
+    }
+    ReplicatedObjectArray.SortByPropertyName(PropertyName, SortableTypesArray);
+    // if server side, replicate changed array
+    if (this->HasAuthority())
+    {
+        ReplicatedObjectArray.MarkArrayDirty();
+        UE_LOGFMT(Log_BA_IM_RepArray, Warning, "{function}: Full array replication triggered as sorting was done on server side"
+            , __FUNCTION__);
+        return;
+    }
+    OnFullArrayChangeSort.Broadcast();
 }
 
 #pragma endregion
@@ -323,7 +334,7 @@ FString ABA_ReplicationInfo::GetUniqueName()
     int32 RandomEntryNumberAdj01 = RandomStream.RandRange(0, (Adjectives.Num() - 1));
     int32 RandomEntryNumberAdj02 = RandomStream.RandRange(0, (Adjectives.Num() - 1));
     int32 RandomEntryNumberNames = RandomStream.RandRange(0, (Names.Num() - 1));
-    
+
     return Adjectives[RandomEntryNumberAdj01].ToString() + Adjectives[RandomEntryNumberAdj02].ToString() + Names[RandomEntryNumberNames].ToString();
 }
 
@@ -432,6 +443,7 @@ void ABA_ReplicationInfo::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
     DOREPLIFETIME_WITH_PARAMS_FAST(ThisClass, ReplicatedObjectArray, Params);
     DOREPLIFETIME_WITH_PARAMS_FAST(ThisClass, RandomStream, Params);
     DOREPLIFETIME_WITH_PARAMS_FAST(ThisClass, StatisticsArray, Params);
+    DOREPLIFETIME_WITH_PARAMS_FAST(ThisClass, Name, Params);
 }
 
 bool ABA_ReplicationInfo::ReplicateSubobjects(UActorChannel* Channel, FOutBunch* Bunch, FReplicationFlags* RepFlags)

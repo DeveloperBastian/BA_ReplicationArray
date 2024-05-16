@@ -16,7 +16,7 @@ UBA_RepArrayActorComponent::UBA_RepArrayActorComponent()
 void UBA_RepArrayActorComponent::BeginPlay()
 {
     Super::BeginPlay();
-    bool EnableTick = false;
+    bool EnableTick = true;
     this->SetComponentTickEnabled(EnableTick);
     PrimaryComponentTick.bStartWithTickEnabled = PrimaryComponentTick.bCanEverTick = EnableTick;
 
@@ -50,7 +50,7 @@ void UBA_RepArrayActorComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProp
     FDoRepLifetimeParams SharedParams;
     SharedParams.bIsPushBased = false;
 
-    DOREPLIFETIME_WITH_PARAMS(ThisClass, ReplicationArrays, SharedParams);
+    DOREPLIFETIME_WITH_PARAMS(ThisClass, ReplicationArrays, SharedParams); 
     DOREPLIFETIME_WITH_PARAMS(ThisClass, ReplicationArrayNames, SharedParams);
 }
 
@@ -64,7 +64,6 @@ void UBA_RepArrayActorComponent::OnUnregister()
     Super::OnUnregister();
 }
 
-// Called every frame
 void UBA_RepArrayActorComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
@@ -79,8 +78,14 @@ void UBA_RepArrayActorComponent::AddReplicationArray(FString ArrayName, bool& Wa
     {
         return;
     }
-
-    UWorld* World = Cast<UWorld>(GetOuter());
+    AActor* Owner = GetOwner();
+    if (!Owner)
+    {
+        UE_LOGFMT(Log_BA_RepArrayActorComponent, Error, "{function}: Fail to get Actor Component Owner"
+            , __FUNCTION__);
+        return;
+    }
+    UWorld* World = Owner->GetWorld();
     if (!World)
     {
         UE_LOGFMT(Log_BA_RepArrayActorComponent, Error, "{function}: Fail to create World reference"
@@ -90,10 +95,11 @@ void UBA_RepArrayActorComponent::AddReplicationArray(FString ArrayName, bool& Wa
 
     FActorSpawnParameters SpawnInfo;
     SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-    SpawnInfo.Name = ABA_ReplicationInfo::StaticClass()->GetFName();
     SpawnInfo.bHideFromSceneOutliner = true;
+    SpawnInfo.Name = FName(ArrayName + "_" + FGuid::NewGuid().ToString());
+    SpawnInfo.Owner = GetOwner();
     ABA_ReplicationInfo* RepArrayActor = World->SpawnActor<ABA_ReplicationInfo>(ABA_ReplicationInfo::StaticClass(), SpawnInfo);
-
+    
     if (RepArrayActor == nullptr)
     {
         UE_LOGFMT(Log_BA_RepArrayActorComponent, Error, "{function}: Fail to spawn ABA_ReplicationInfo in World '{word}'"
@@ -101,9 +107,10 @@ void UBA_RepArrayActorComponent::AddReplicationArray(FString ArrayName, bool& Wa
         return;
     }
     ReplicationArrays.Push(RepArrayActor);
+    RepArrayActor->Name = ArrayName;
     ReplicationArrayNames.Push(ArrayName);
     WasAdded = true;
-    this->OnRepArrayAdded.Broadcast(ArrayName);
+    this->OnReplicationArrayAdded.Broadcast(ArrayName);
 }
 
 void UBA_RepArrayActorComponent::DeleteReplicationArray(FString ArrayName, bool& WasDeleted)
@@ -119,12 +126,13 @@ void UBA_RepArrayActorComponent::DeleteReplicationArray(FString ArrayName, bool&
         ReplicationArrayNames.RemoveAt(Position, EAllowShrinking::Yes);
         ReplicationArrays.RemoveAt(Position, EAllowShrinking::Yes);
         WasDeleted = true;
-        this->OnRepArrayDeleted.Broadcast(ArrayName);
+        this->OnReplicationArrayDeleted.Broadcast(ArrayName);
     }
 }
 
 void UBA_RepArrayActorComponent::GetReplicationArray(FString ArrayName, ABA_ReplicationInfo*& ReplicationArray, bool& WasFound)
 {
+    WasFound = false;
     if (!CheckArrayNameParameter(ArrayName, true))
     {
         return;
@@ -132,6 +140,7 @@ void UBA_RepArrayActorComponent::GetReplicationArray(FString ArrayName, ABA_Repl
     if (int32 Position = ReplicationArrayNames.Find(ArrayName);
         Position != INDEX_NONE && ReplicationArrays.IsValidIndex(Position))
     {
+        WasFound = true;
         ReplicationArray = ReplicationArrays[Position];
     }
 }
@@ -141,7 +150,7 @@ void UBA_RepArrayActorComponent::GetReplicationArrays(TArray<ABA_ReplicationInfo
     CurrentReplicationArrays = this->ReplicationArrays;
 }
 
-void UBA_RepArrayActorComponent::GetReplicationArrayNmes(TArray<FString>& CurrentReplicationArrayNames)
+void UBA_RepArrayActorComponent::GetReplicationArrayNames(TArray<FString>& CurrentReplicationArrayNames)
 {
     CurrentReplicationArrayNames = ReplicationArrayNames;
 }
@@ -152,7 +161,7 @@ bool UBA_RepArrayActorComponent::CheckArrayNameParameter(FString& ArrayName, boo
 {
     if (ArrayName.IsEmpty())
     {
-        UE_LOGFMT(Log_BA_RepArrayActorComponent, Error, "{function}: Array name cannot be empty"
+        UE_LOGFMT(Log_BA_RepArrayActorComponent, Warning, "{function}: Array name cannot be empty"
             , __FUNCTION__);
         return false;
     }
@@ -160,7 +169,7 @@ bool UBA_RepArrayActorComponent::CheckArrayNameParameter(FString& ArrayName, boo
     {
         if (ReplicationArrayNames.Find(ArrayName) == INDEX_NONE)
         {
-            UE_LOGFMT(Log_BA_RepArrayActorComponent, Error, "{function}: Array name does not exist"
+            UE_LOGFMT(Log_BA_RepArrayActorComponent, Warning, "{function}: Array name does not exist"
                 , __FUNCTION__);
             return false;
         }

@@ -9,15 +9,16 @@
 #include "BA_RepArray.h"
 #include "BA_Statics.h"
 
+#pragma region Constructor
+
 FBA_FFA_Object::FBA_FFA_Object(FString SerializedStorageObject, UClass* StorageObjectClass)
 {
 	if (!SerializedStorageObject.IsEmpty())
 	{
 		SerializedObject = SerializedStorageObject;
-		if (ClassToCastTo)
-		{
-			ClassToCastTo = StorageObjectClass;
-		}
+		InstanceGuid = FGuid::NewGuid();
+		ClassToCastTo = StorageObjectClass;
+		SourceObject = EBA_EEntrySource::E_Object;
 	}
 	else
 	{
@@ -32,10 +33,8 @@ FBA_FFA_Object::FBA_FFA_Object(FGuid Guid, FString SerializedStorageObject, UCla
 	{
 		SerializedObject = SerializedStorageObject;
 		InstanceGuid = Guid;
-		if (ClassToCastTo)
-		{
-			ClassToCastTo = StorageObjectClass;
-		}
+		ClassToCastTo = StorageObjectClass;
+		SourceObject = EBA_EEntrySource::E_Object;
 	}
 	else
 	{
@@ -44,6 +43,27 @@ FBA_FFA_Object::FBA_FFA_Object(FGuid Guid, FString SerializedStorageObject, UCla
 	}
 }
 
+#pragma endregion
+
+void FBA_FFA_Object::GetIdentifier(FString& HumanReadableName)
+{
+	HumanReadableName = InstanceIdentifier;
+}
+
+void FBA_FFA_Object::GetInstanceGuid(FGuid EntryGuid)
+{
+	EntryGuid = InstanceGuid;
+}
+
+void FBA_FFA_Object::GetSortingIndex(int32 SortIndexInArray)
+{
+	SortIndexInArray = SortIndex;
+}
+
+void FBA_FFA_Object::GetStorageObjectClass(UClass*& StorageObjectClass)
+{
+	StorageObjectClass = ClassToCastTo;
+}
 
 FString FBA_FFA_Object::ToString()
 {
@@ -52,6 +72,8 @@ FString FBA_FFA_Object::ToString()
 		+ InstanceIdentifier
 		+ "' ["
 		+ InstanceGuid.ToString()
-		+ "], sorting index "
+		+ "], object type '"
+		+ (IsValid(ClassToCastTo) ? ClassToCastTo->GetDisplayNameText().ToString() : "no class defined yet")
+		+ "', sorting index "
 		+ FString::FromInt(SortIndex);
 }

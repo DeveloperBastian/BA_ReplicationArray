@@ -47,8 +47,10 @@ public:
 	void ForEachChildren(const TFunctionRef<void(FBA_FFA_Object)>& Func);
 	bool RemoveEntry(FGuid InstanceGuid, UObject*& DeletedEntry);
 	bool GetEntryByGuid(FGuid Guid, FBA_FFA_Object& ResultEntry);
+	bool GetEntryByIdentifier(FString Identifier, FBA_FFA_Object& ResultEntry);
 	void Clear();
-
+	void SortByIndex();
+	void SortByPropertyName(const FString PropertyName, TArray<FString> SortableTypesArray);
 private:
 
 	UPROPERTY()

@@ -4,6 +4,7 @@
 #include "Net/Serialization/FastArraySerializer.h"
 #include "UObject/Object.h"
 #include "CoreMinimal.h"
+#include "Enums/BA_EEntrySource.h"
 #include "FBA_FFA_Object.generated.h"
 
 USTRUCT(BlueprintType, Blueprintable)
@@ -11,7 +12,7 @@ struct BA_REPARRAY_API FBA_FFA_Object : public FFastArraySerializerItem
 {
 	GENERATED_BODY()
 
-    FBA_FFA_Object() : SerializedObject(""), ClassToCastTo(UObject::StaticClass()), SortIndex(INDEX_NONE), InstanceGuid(FGuid()), InstanceIdentifier("") { }
+    FBA_FFA_Object() : SourceObject(EBA_EEntrySource::E_Object), SerializedObject(""), ClassToCastTo(UObject::StaticClass()), SortIndex(INDEX_NONE), InstanceGuid(FGuid()), InstanceIdentifier("") { }
     FBA_FFA_Object(FString SerializedStorageObject, UClass* StorageObjectClass);
     FBA_FFA_Object(FGuid Guid, FString SerializedStorageObject, UClass* StorageObjectClass);
 
@@ -19,6 +20,15 @@ struct BA_REPARRAY_API FBA_FFA_Object : public FFastArraySerializerItem
     friend class ABA_ReplicationInfo;
 
 public:
+
+    void GetIdentifier(FString& HumanReadableName);
+
+    void GetInstanceGuid(FGuid EntryGuid);
+
+    void GetSortingIndex(int32 SortIndexInArray);
+
+    void GetStorageObjectClass(UClass*& StorageObjectClass);
+
     FString ToString();
 
 #pragma region Compare and Sort
@@ -70,20 +80,24 @@ public:
 #pragma endregion
 
 private:
+    UPROPERTY()
+    EBA_EEntrySource SourceObject;
 
     UPROPERTY()
     FString SerializedObject;
 
-    UPROPERTY()
+public:
+
+    UPROPERTY(BlueprintReadOnly)
     UClass* ClassToCastTo;
 
-    UPROPERTY()
+    UPROPERTY(BlueprintReadOnly)
 	int32 SortIndex;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly)
 	FGuid InstanceGuid = FGuid::NewGuid();
 
-    UPROPERTY()
+    UPROPERTY(BlueprintReadOnly)
     FString InstanceIdentifier = InstanceGuid.ToString();
 
 };

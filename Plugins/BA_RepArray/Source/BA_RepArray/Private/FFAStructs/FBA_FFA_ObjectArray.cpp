@@ -38,7 +38,6 @@ bool FBA_FFA_ObjectArray::AddEntry(UObject* StorageObject, FGuid InstanceGuid, F
 	}
 	FString Serialized = BA_Statics::SerializeObject(StorageObject);
 	FBA_FFA_Object Entry = FBA_FFA_Object(InstanceGuid, Serialized, StorageObject->GetClass());
-	// ToDo: map of readable names and check uniqueness!
 	if (!ReadableIdentifier.IsEmpty())
 	{
 		Entry.InstanceIdentifier = ReadableIdentifier;
@@ -84,11 +83,77 @@ void FBA_FFA_ObjectArray::Clear()
 	Items.Empty();
 	GuidToArrayPos.Empty();
 	IdentifierToArrayPos.Empty();
+	EntryObjectsPropertyMap.Empty();
 
 	MarkArrayDirty();
 	UE_LOGFMT(Log_BA_IM_RepArray, Log, "{function}: FFA Array cleared - Items count = {items}, guid count = {guid}"
 		, __FUNCTION__, FString::FromInt(Items.Num()), FString::FromInt(GuidToArrayPos.Num()));
 }
+
+void FBA_FFA_ObjectArray::SortByIndex()
+{
+	// sorting by Index
+	Items.Sort();
+	GuidToArrayPos.Empty(Items.Num());
+	IdentifierToArrayPos.Empty(Items.Num());
+	for (int32 i = 0; i < Items.Num(); i++)
+	{
+		GuidToArrayPos.Emplace(Items[i].InstanceGuid, i);
+		IdentifierToArrayPos.Emplace(Items[i].InstanceIdentifier, i);
+	}
+}
+
+void FBA_FFA_ObjectArray::SortByPropertyName(const FString PropertyName, TArray<FString> SortableTypesArray)
+{
+	//TLess<> Predicate;
+	auto SortAlgorithm = [PropertyName, SortableTypesArray, this](FBA_FFA_Object EntryA, FBA_FFA_Object EntryB)
+		{
+			// ToDo - owner??
+			UObject* UObjectA = BA_Statics::DeserializeObjectFromString(EntryA.SerializedObject, Owner, EntryA.ClassToCastTo);
+			UObject* UObjectB = BA_Statics::DeserializeObjectFromString(EntryB.SerializedObject, Owner, EntryB.ClassToCastTo);
+
+			if (UObjectA == NULL || UObjectB == NULL)
+			{
+				return false;
+			}
+
+			FProperty* PropA = UObjectA->GetClass()->FindPropertyByName(*PropertyName);
+			FProperty* PropB = UObjectB->GetClass()->FindPropertyByName(*PropertyName);
+
+			if (PropA == NULL || PropB == NULL)
+			{
+				return false;
+			}
+
+			// Determine the value type of both FProperty
+			FString TypeA = PropA->GetCPPType();
+			FString TypeB = PropB->GetCPPType();
+
+			// Check if both types are equal
+			if (TypeA != TypeB)
+			{
+				return false;
+			}
+
+			// Check if the type is found in the type array
+			if (!SortableTypesArray.Contains(TypeA))
+			{
+				return false;
+			}
+
+			// Retrieve the value of both FProperty
+			FString ValueA, ValueB;
+			PropA->ExportText_InContainer(0, ValueA, UObjectA, UObjectA, UObjectA, PPF_None);
+			PropB->ExportText_InContainer(0, ValueB, UObjectB, UObjectB, UObjectB, PPF_None);
+
+			// Compare the values with "<" and return true or false
+			return ValueA < ValueB;
+		};
+
+	Algo::Sort(Items, SortAlgorithm);
+}
+
+
 
 bool FBA_FFA_ObjectArray::RemoveEntry(FGuid InstanceGuid, UObject*& DeletedEntry)
 {
@@ -156,6 +221,10 @@ void FBA_FFA_ObjectArray::PreReplicatedRemove(const TArrayView<int32>& RemovedIn
 		if (!Items.IsValidIndex(Index)) { continue; }
 
 		FBA_FFA_Object& Entry = Items[Index];
+		// update helper maps
+		GuidToArrayPos.Remove(Entry.InstanceGuid);
+		IdentifierToArrayPos.Remove(Entry.InstanceIdentifier);
+
 		OnEntryPreReplicatedRemove.ExecuteIfBound(Entry);
 	}
 }
@@ -168,11 +237,6 @@ void FBA_FFA_ObjectArray::PostReplicatedAdd(const TArrayView<int32>& AddedIndice
 		if (!Items.IsValidIndex(Index)) { continue; }
 
 		FBA_FFA_Object& Entry = Items[Index];
-		if (!Entry.SerializedObject.IsEmpty())
-		{
-			UObject* StorageObject = BA_Statics::DeserializeObjectFromString(Entry.SerializedObject, Owner, Entry.ClassToCastTo);
-			// ToDo: Update Add/Remove Maps
-		}
 		// check index map storage
 		if (int32* Position = GuidToArrayPos.Find(Entry.InstanceGuid);
 			Position && *Position == INDEX_NONE)
@@ -230,7 +294,6 @@ bool FBA_FFA_ObjectArray::ReplicateFFAObjects(UActorChannel* Channel, FOutBunch*
 
 #pragma endregion
 
-// ToDo: Decide where to put search logic
 bool FBA_FFA_ObjectArray::GetEntryByGuid(FGuid Guid, FBA_FFA_Object& ResultEntry)
 {
 	if (!Guid.IsValid())
@@ -240,6 +303,25 @@ bool FBA_FFA_ObjectArray::GetEntryByGuid(FGuid Guid, FBA_FFA_Object& ResultEntry
 		return false;
 	}
 	if (int32* PositionPtr = GuidToArrayPos.Find(Guid);
+		PositionPtr
+		&& *PositionPtr != INDEX_NONE
+		&& Items.IsValidIndex(*PositionPtr))
+	{
+		ResultEntry = Items[*PositionPtr];
+		return true;
+	}
+	return false;
+}
+
+bool FBA_FFA_ObjectArray::GetEntryByIdentifier(FString Identifier, FBA_FFA_Object& ResultEntry)
+{
+	if (!Identifier.IsEmpty())
+	{
+		UE_LOGFMT(Log_BA_IM_RepArray, Log, "{function}: Identifier is empty"
+			, __FUNCTION__);
+		return false;
+	}
+	if (int32* PositionPtr = IdentifierToArrayPos.Find(Identifier);
 		PositionPtr
 		&& *PositionPtr != INDEX_NONE
 		&& Items.IsValidIndex(*PositionPtr))

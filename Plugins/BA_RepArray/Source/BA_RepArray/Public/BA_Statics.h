@@ -116,94 +116,97 @@ public:
     }
 #pragma endregion
 
-    static TArray<uint8> SerializeObjectIntoUnit8Array(UObject* ObjectToSerialize, int32& UncompressedSize)
-    {
-        if (ObjectToSerialize != nullptr)
-        {
-            // Create a binary archive to serialize data into a byte array
-            FBufferArchive BinaryData;
+#pragma region Outcommented compression - buggy
+    //static TArray<uint8> SerializeObjectIntoUnit8Array(UObject* ObjectToSerialize, int32& UncompressedSize)
+//{
+//    if (ObjectToSerialize != nullptr)
+//    {
+//        // Create a binary archive to serialize data into a byte array
+//        FBufferArchive BinaryData;
 
-            // Wrap the binary archive with FObjectAndNameAsStringProxyArchive
-            FObjectAndNameAsStringProxyArchive Ar(BinaryData, true);
+//        // Wrap the binary archive with FObjectAndNameAsStringProxyArchive
+//        FObjectAndNameAsStringProxyArchive Ar(BinaryData, true);
 
-            // Serialize the UObject
-            ObjectToSerialize->Serialize(Ar); 
+//        // Serialize the UObject
+//        ObjectToSerialize->Serialize(Ar); 
 
-            // Convert the binary data to a base64 string for storage
-            FString SerializedObjectData;
-            SerializedObjectData = FBase64::Encode(BinaryData);
+//        // Convert the binary data to a base64 string for storage
+//        FString SerializedObjectData;
+//        SerializedObjectData = FBase64::Encode(BinaryData);
 
-            auto& CharArray = SerializedObjectData.GetCharArray();
-            UncompressedSize = CharArray.Num();
+//        auto& CharArray = SerializedObjectData.GetCharArray();
+//        UncompressedSize = CharArray.Num();
 
-            FName CompressionFormatToUse = NAME_LZ4;
-            
-            TArray<uint8> CompressedMemory;
-            int32 CompressedSizeEstimate = FCompression::CompressMemoryBound(CompressionFormatToUse, CharArray.Num());
-            CompressedMemory.AddDefaulted(CompressedSizeEstimate);
+//        FName CompressionFormatToUse = NAME_LZ4;
+//        
+//        TArray<uint8> CompressedMemory;
+//        int32 CompressedSizeEstimate = FCompression::CompressMemoryBound(CompressionFormatToUse, CharArray.Num());
+//        CompressedMemory.AddDefaulted(CompressedSizeEstimate);
 
-            const bool bCompressed = FCompression::CompressMemory(
-                CompressionFormatToUse,
-                CompressedMemory.GetData(),
-                CompressedSizeEstimate,
-                CharArray.GetData(),
-                CharArray.Num());
-            // ToDo
-            // if the compression results are worse, just store uncompressed data
-            /*if (!bCompressed || CompressedSizeEstimate >= CharArray.Num())
-            {
-                return CharArray;
-            }
-            else
-            {
-                return CompressedMemory;
-            }*/
-            return CompressedMemory;
-        }
-        return TArray<uint8>();
-    }
+//        const bool bCompressed = FCompression::CompressMemory(
+//            CompressionFormatToUse,
+//            CompressedMemory.GetData(),
+//            CompressedSizeEstimate,
+//            CharArray.GetData(),
+//            CharArray.Num());
+//        // 
+//        // if the compression results are worse, just store uncompressed data
+//        /*if (!bCompressed || CompressedSizeEstimate >= CharArray.Num())
+//        {
+//            return CharArray;
+//        }
+//        else
+//        {
+//            return CompressedMemory;
+//        }*/
+//        return CompressedMemory;
+//    }
+//    return TArray<uint8>();
+//}
 
-    static UObject* DeserializeObjectFromUint8Array(const TArray<uint8>& CompressedData, int32 UncompressedSize, UObject* Outer)
-    {
-        if (CompressedData.Num() > 0)
-        {
-            // compression format
-            FName CompressionFormatToUse = NAME_LZ4;
-            
-            //FString::ToHexBlob(ToProcess->HexData, CompressedData.GetData(), ToProcess->CompressedSize);
+//static UObject* DeserializeObjectFromUint8Array(const TArray<uint8>& CompressedData, int32 UncompressedSize, UObject* Outer)
+//{
+//    if (CompressedData.Num() > 0)
+//    {
+//        // compression format
+//        FName CompressionFormatToUse = NAME_LZ4;
+//        
+//        //FString::ToHexBlob(ToProcess->HexData, CompressedData.GetData(), ToProcess->CompressedSize);
 
-            TArray<uint8> DestData; 
-            DestData.Reset(UncompressedSize);
-            DestData.AddUninitialized(UncompressedSize);
+//        TArray<uint8> DestData; 
+//        DestData.Reset(UncompressedSize);
+//        DestData.AddUninitialized(UncompressedSize);
 
-            // Reader.Serialize(SrcData.GetData(), CompressedSize);
-            bool bDecompressed = FCompression::UncompressMemory(
-                NAME_Zlib, 
-                DestData.GetData(), 
-                UncompressedSize, 
-                CompressedData.GetData(), 
-                CompressedData.Num());
-            
-            if (bDecompressed)
-            {
-                FString Base64Data = FString::FromBlob(DestData.GetData(), DestData.Num());
-                TArray<uint8> BinaryData;
+//        // Reader.Serialize(SrcData.GetData(), CompressedSize);
+//        bool bDecompressed = FCompression::UncompressMemory(
+//            NAME_Zlib, 
+//            DestData.GetData(), 
+//            UncompressedSize, 
+//            CompressedData.GetData(), 
+//            CompressedData.Num());
+//        
+//        if (bDecompressed)
+//        {
+//            FString Base64Data = FString::FromBlob(DestData.GetData(), DestData.Num());
+//            TArray<uint8> BinaryData;
 
-                FBase64::Decode(Base64Data, BinaryData);
-                FMemoryReader Reader(BinaryData, true);
+//            FBase64::Decode(Base64Data, BinaryData);
+//            FMemoryReader Reader(BinaryData, true);
 
-                FObjectAndNameAsStringProxyArchive Ar(Reader, true);
-                UObject* DeserializedObject = NewObject<UObject>(Outer);
-                if (DeserializedObject)
-                {
-                    DeserializedObject->Serialize(Ar);
-                    return DeserializedObject;
-                }
-            }
-        }
+//            FObjectAndNameAsStringProxyArchive Ar(Reader, true);
+//            UObject* DeserializedObject = NewObject<UObject>(Outer);
+//            if (DeserializedObject)
+//            {
+//                DeserializedObject->Serialize(Ar);
+//                return DeserializedObject;
+//            }
+//        }
+//    }
 
-        return nullptr;
-    }
+//    return nullptr;
+//}
+
+#pragma endregion
 
     static FString SerializeObject(UObject* StorageObject)
     {
@@ -230,17 +233,12 @@ public:
                 UObject* DeserializedObject = NULL;
                 if (CastToClass)
                 {
-                    DeserializedObject = NewObject<UObject>(Outer, CastToClass);
-                }
-                else
-                {
-                    DeserializedObject = NewObject<UObject>(Outer);
-                }
-
-                if (DeserializedObject)
-                {
-                    DeserializedObject->Serialize(Ar);
-                    return DeserializedObject;
+                    if (DeserializedObject = NewObject<UObject>(Outer, CastToClass);
+                        DeserializedObject)
+                    {
+                        DeserializedObject->Serialize(Ar);
+                        return DeserializedObject;
+                    }
                 }
             }
         }
