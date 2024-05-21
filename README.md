@@ -12,5 +12,6 @@ Features:
 -	Extensive documentation and examples
 -	The Replication Arrays are implementations of the 'FFastArraySerializer' struct class with entries of 'FFastArraySerializerItem' with all important functionality exposed to Blueprint.
 
-Docs: https://developerbastian.tech/docs/category/ba-inventory-manager
-Github: https://github.com/DeveloperBastian/BA_ReplicationArray
+## Links
+-	Docs: https://developerbastian.tech/docs/category/ba-inventory-manager
+-	Github: https://github.com/DeveloperBastian/BA_ReplicationArray
