@@ -200,7 +200,9 @@ public:
      * @param NumberOfNewObject (Optional) The number of new objects to add. Defaults to 1.
      * @note This function is callable from Blueprints and is only authoritative on the server.
      */
-    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, meta = (ToolTip = "Add Object(s) to a Replication Array. Will return the Guid and readable ID for the last object added. Warning: Do not add more objects size than the data channel can transport (default is 64kB) within one adding process"
+        , ShortToolTip = "Add Object", Category = "BA Rep Array|Replication Info Actor|Array CRUD"
+        , CompactNodeTitle = "Add Object"))
     void AddObject(UObject* StorageObject, bool& SuccessfullyAdded, FGuid& InstanceGuid, FString& InstanceIdentifier, int64 NumberOfNewObject = 1);
 
     /**
@@ -208,7 +210,9 @@ public:
      *
      * @note This function is callable from Blueprints and is only authoritative on the server.
      */
-    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, meta = (ToolTip = "Clear a Replication Array."
+        , ShortToolTip = "Clear Array", Category = "BA Rep Array|Replication Info Actor|Array CRUD"
+        , CompactNodeTitle = "Clear Array"))
     void ClearArray();
 
     /**
@@ -219,7 +223,9 @@ public:
      * @return Returns true if the entry was successfully removed; otherwise, false.
      * @note This function is callable from Blueprints and is only authoritative on the server.
      */
-    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, meta = (ToolTip = "Delete Entry from Replication Array."
+        , ShortToolTip = "Delete Entry", Category = "BA Rep Array|Replication Info Actor|Array CRUD"
+        , CompactNodeTitle = "Delete Entry"))
     bool RemoveEntry(FGuid Guid, UObject*& DeletedEntry);
 #pragma endregion
 
@@ -227,19 +233,25 @@ public:
 
 #pragma region DEBUG
     
-    UFUNCTION(BlueprintCallable, BlueprintPure)
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (ToolTip = "Get Object Property Map. Returns all properties found via reflection system."
+        , ShortToolTip = "Object Prop Map", Category = "BA Rep Array|Replication Info Actor|Misc"
+        , CompactNodeTitle = "Object Prop Map"))
     TMap<FString, FString> GetObjectsPropertyMap()
     {
         return ReplicatedObjectArray.EntryObjectsPropertyMap;
     }
 
-    UFUNCTION(BlueprintCallable, BlueprintPure)
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (ToolTip = "Get Sortable Types. Returns all property types that can be sorted via reflection system."
+        , ShortToolTip = "Sortable Types", Category = "BA Rep Array|Replication Info Actor|Misc"
+        , CompactNodeTitle = "Sortable Types"))
     TArray<FString> GetSortableTypeArray()
     {
         return SortableTypesArray;
     }
 
-    UFUNCTION(BlueprintCallable, BlueprintPure)
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (ToolTip = "Sump Object Properties. Returns all properties found via reflection system."
+        , ShortToolTip = "Object Properties", Category = "BA Rep Array|Replication Info Actor|Misc"
+        , CompactNodeTitle = "Object Properties"))
     FString DumpObjectProperties(UObject* Object)
     {
         if (Object)
@@ -252,7 +264,9 @@ public:
         }
     }
 
-    UFUNCTION(BlueprintCallable, BlueprintPure)
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (ToolTip = "Get Object Statistics. Returns all statistics calculated as String."
+        , ShortToolTip = "Object Stats", Category = "BA Rep Array|Replication Info Actor|Misc"
+        , CompactNodeTitle = "Object Stats"))
     FString DumpStatisticsProperties()
     {
         FString StatisticsResult;
@@ -263,13 +277,17 @@ public:
         return StatisticsResult;
     }
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta = (ToolTip = "Start Stopwatch. Starts a stop watch to count time in milliseconds."
+        , ShortToolTip = "Stopwatch - Start", Category = "BA Rep Array|Replication Info Actor|Misc"
+        , CompactNodeTitle = "Stopwatch - Start"))
     void StopWatchInMillisecondsStart()
     {
         StartStopWatchTime = FPlatformTime::Seconds();
     }
 
-    UFUNCTION(BlueprintCallable, BlueprintPure)
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (ToolTip = "Stop Stopwatch. Returns time elapsed in milli seconds."
+        , ShortToolTip = "Stop Stopwatch", Category = "BA Rep Array|Replication Info Actor|Misc"
+        , CompactNodeTitle = "Stop Stopwatch"))
     double StopWatchInMillisecondsStop()
     {
         double EndTime = FPlatformTime::Seconds();
@@ -277,17 +295,26 @@ public:
         return ElapsedSeconds * 1e3; 
     }
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta = (ToolTip = "Start - Get CPU Cycles."
+        , ShortToolTip = "CPU Cycles - Start", Category = "BA Rep Array|Replication Info Actor|Misc"
+        , CompactNodeTitle = "CPU Cycles - Stop"))
     void CPUCyclesMeasureStart()
     {
         StartCycles = FPlatformTime::Cycles();
     }
 
-    UFUNCTION(BlueprintCallable, BlueprintPure)
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (ToolTip = "Stop - Get CPU Cycles."
+        , ShortToolTip = "CPU Cycles - Stop", Category = "BA Rep Array|Replication Info Actor|Misc"
+        , CompactNodeTitle = "CPU Cycles - Stop"))
     double CPUCyclesMeasureStop()
     {
         return FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles() - StartCycles);
     }
+
+    UFUNCTION(BlueprintCallable, BlueprintPure, meta = (ToolTip = "Get Unique Name. Generates a random name with two adjectives and one name."
+        , ShortToolTip = "Get Unique Name", Category = "BA Rep Array|Replication Info Actor|Misc"
+        , CompactNodeTitle = "Get Unique Name"))
+    FString GetUniqueName();
 
 
 #pragma endregion
@@ -328,9 +355,6 @@ private:
 
     UFUNCTION()
     bool LoadFileToArray(FString FileName, TArray<FName>& TargetArray);
-
-    UFUNCTION()
-    FString GetUniqueName();
 
     bool CheckObjectPropertyForStatistics(TFieldIterator<FProperty> PropIt, UObject* Object, int32& StatPosition, double& PropertyValue);
 

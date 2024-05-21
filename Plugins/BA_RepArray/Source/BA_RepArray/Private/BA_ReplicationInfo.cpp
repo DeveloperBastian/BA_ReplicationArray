@@ -55,6 +55,8 @@ void ABA_ReplicationInfo::AddObject(UObject* StorageObject, bool& SuccessfullyAd
             if (SuccessfullyAdded = ReplicatedObjectArray.AddEntry(StorageObject, KvP.Value, KvP.Key);
                 SuccessfullyAdded == true)
             {
+                InstanceIdentifier = KvP.Key;
+                InstanceGuid = KvP.Value;
                 SuccessCounter++;
                 UpdateStatistics_Add(StorageObject);
             }
