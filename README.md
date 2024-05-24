@@ -1,6 +1,7 @@
 # BA_ReplicationArray
 Unreal Replicated Array exposed to Blueprint
 
+
 ## Features
 An Blueprint exposed Array (using [FFastArraySerializer](https://docs.unrealengine.com/4.27/en-US/API/Runtime/Engine/Engine/FFastArraySerializer/)) that accepts every Object and will replicate it between server and client.
 Features:
@@ -15,3 +16,8 @@ Features:
 ## Links
 -	Docs: https://developerbastian.tech/docs/category/ba-inventory-manager
 -	Github: https://github.com/DeveloperBastian/BA_ReplicationArray
+
+## Video ##
+<iframe width="560" height="315" src="https://youtu.be/rrGx6bwwM6U" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+[german version](https://youtu.be/pqe5AiD4tO8)
