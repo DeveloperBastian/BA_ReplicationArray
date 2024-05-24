@@ -19,6 +19,6 @@ Features:
 
 ## Video ##
 
-![](https://youtu.be/rrGx6bwwM6U")
+[Youtube tutorial en](https://youtu.be/rrGx6bwwM6U)
 
-[german version](https://youtu.be/pqe5AiD4tO8)
+[Youtube tutorial de](https://youtu.be/pqe5AiD4tO8)
